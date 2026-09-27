@@ -1,0 +1,48 @@
+Datastore failure/degradation experiment against http://localhost:3001
+(start the corrected server first with: scripts/start-server.sh)
+
+=== Phase 1: reset sale, buy a few tickets to establish a baseline ===
+{"ok":true,"total":50}
+{"ticket_number":1}
+
+=== Phase 2: simulate the datastore going slow (10s) for the next call ===
+{"ok":true,"simulate_slow_ms":10000}
+Issuing a /buy call now; expect it to take ~10s to respond (server blocks synchronously on the simulated slow datastore call):
+{"ticket_number":2}
+Observed latency: 10008ms
+
+NOTE: because node:sqlite is synchronous, a slow datastore call blocks
+the entire event loop -- ALL other in-flight requests to this process
+queue up behind it, not just the one that hit the slow call. This is a
+real, honest limitation of the single-threaded synchronous design; see
+README 'Known Limitations' and DECISIONS.md.
+
+
+=== Phase 2b: prove the slow call blocks OTHER concurrent requests too ===
+(this is the important part -- it's not just the one unlucky request that pays the cost)
+  request A (triggers the slow path): 3008ms
+  request B (arrives 100ms later, completely unrelated buyer): 5908ms
+  (B was delayed almost as long as A despite sharing nothing with it -- the synchronous
+   datastore call blocks Node's single event loop thread entirely.)
+
+=== Phase 3: simulate the datastore being completely unavailable ===
+{"ok":true,"simulate_down":true}
+Issuing 5 /buy calls while the datastore is 'down':
+  request 1 -> HTTP 503
+  request 2 -> HTTP 503
+  request 3 -> HTTP 503
+  request 4 -> HTTP 503
+  request 5 -> HTTP 503
+
+=== Phase 4: bring the datastore back and confirm recovery + no corruption ===
+{"ok":true,"simulate_down":false}
+Retrying the requests that failed during the outage (client-side retry with the SAME request_id):
+{"ticket_number":5}
+{"ticket_number":6}
+{"ticket_number":7}
+{"ticket_number":8}
+{"ticket_number":9}
+
+Final status:
+{"total":50,"sold":9,"tickets_issued":9,"tickets":{"1":"baseline-1","2":"slow-test","3":"slow-A","4":"fast-B","5":"down-test-1","6":"down-test-2","7":"down-test-3","8":"down-test-4","9":"down-test-5"},"users":{"baseline-1":[1],"slow-test":[2],"slow-A":[3],"fast-B":[4],"down-test-1":[5],"down-test-2":[6],"down-test-3":[7],"down-test-4":[8],"down-test-5":[9]}}
+
