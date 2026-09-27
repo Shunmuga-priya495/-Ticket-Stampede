@@ -1,0 +1,17 @@
+
+=== RESULTS ===
+Total requests:        20000
+Successful purchases:  144 (100 new tickets + 44 idempotent replays)
+Sold-out responses:    19856
+Errors:                0
+Wall time:             12.87s
+Requests/sec:          1554.1
+Median latency:        565.02ms
+P99 latency:           1371.63ms
+
+Invariant 1 (never oversell): PASS  [distinct tickets observed=100, server sold=100, capacity=100]
+Invariant 2 (unique ticket numbers): PASS  [ticket numbers reused across different request_ids=0]
+Invariant 3 (request_id idempotency): PASS  [request_ids that got >1 distinct ticket=0]
+Invariant 4 (status count matches issued tickets): PASS  [server sold=100, server tickets_issued=100, client observed distinct=100]
+
+OVERALL: ALL INVARIANTS PASS
