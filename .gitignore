@@ -1,0 +1,5 @@
+data.sqlite
+data.sqlite-wal
+data.sqlite-shm
+tests/.test-*.sqlite*
+*.log
